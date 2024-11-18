@@ -1,13 +1,12 @@
-// CreateGroupForm.js - Create Group Page
 import React, { useState } from 'react';
 import axios from '../../services/api';
 
 function CreateGroupForm() {
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
-    const [error, setError] = useState(null);  // Add error state for form validation
+    const [error, setError] = useState(null);  
 
-    // Replace with actual user authentication logic
+   
     const currentUser = 1;  // Hardcoded for now, this should be dynamically set based on the logged-in user
 
     const handleSubmit = (e) => {

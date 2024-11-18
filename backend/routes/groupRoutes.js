@@ -1,6 +1,5 @@
-// groupRoutes.js
 import express from 'express';
-import { createGroup, getGroups, deleteGroup, getGroupById } from '../controllers/groupController.js';
+import { createGroup, getGroups, deleteGroup, getGroupById, sendJoinRequest, acceptJoinRequest, rejectJoinRequest } from '../controllers/groupController.js';
 
 const router = express.Router();
 
@@ -15,5 +14,14 @@ router.get('/:id', getGroupById);
 
 // Route for deleting a group (DELETE)
 router.delete('/:id', deleteGroup);
+
+// Route to send a join request
+router.post('/join-request', sendJoinRequest);
+
+// Route to accept a join request
+router.post('/accept-request', acceptJoinRequest);
+
+// Route to reject a join request
+router.post('/reject-request', rejectJoinRequest);
 
 export { router as groupRoutes };
