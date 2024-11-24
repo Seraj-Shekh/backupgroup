@@ -37,7 +37,6 @@ export const getGroups = async (req, res) => {
 };
 
 // Fetch a group by ID and return join requests
-// Fetch a group by ID and return join requests
 export const getGroupById = async (req, res) => {
     const { id } = req.params;
 
@@ -82,11 +81,18 @@ export const getGroupById = async (req, res) => {
 
 
 // Send a join request
-// Send a join request
 export const sendJoinRequest = async (req, res) => {
     const { groupId, userId } = req.body;
 
     try {
+        // Log the incoming request for debugging
+        console.log('Incoming join request for groupId:', groupId, 'userId:', userId);
+
+        // Check if the user is authenticated and valid
+        if (!userId || !groupId) {
+            return res.status(400).json({ message: 'Missing groupId or userId.' });
+        }
+
         // Check if the user is already a member or has a pending request
         const existingMember = await pool.query(
             `SELECT * FROM groupMembers WHERE group_id = $1 AND users_id = $2`,
@@ -100,7 +106,7 @@ export const sendJoinRequest = async (req, res) => {
         // Insert a new join request with status 'pending'
         await pool.query(
             `INSERT INTO groupMembers (group_id, users_id, status) VALUES ($1, $2, $3)`,
-            [groupId, userId, 'pending'] // Ensure status is 'pending'
+            [groupId, userId, 'pending']
         );
 
         res.status(200).json({ message: 'Join request sent successfully.' });
@@ -111,9 +117,6 @@ export const sendJoinRequest = async (req, res) => {
 };
 
 
-
-// Accept join request
-// Accept a join request
 // Accept a join request
 export const acceptJoinRequest = async (req, res) => {
     const { groupId, userId, currentUserId } = req.body;
@@ -155,8 +158,6 @@ export const acceptJoinRequest = async (req, res) => {
 
 
 
-// Reject join request
-// Reject a join request
 // Reject a join request
 export const rejectJoinRequest = async (req, res) => {
     const { groupId, userId, currentUserId } = req.body;
@@ -226,5 +227,52 @@ export const deleteGroup = async (req, res) => {
     } catch (error) {
         console.error('Error deleting group:', error.message);
         res.status(500).json({ message: 'Internal Server Error' });
+    }
+};
+
+// Remove member from group (Only for owners)
+export const removeMember = async (req, res) => {
+    const { groupId, userId, currentUserId } = req.body;
+
+    try {
+        // Fetch the group and check if the current user is the owner
+        const groupResult = await pool.query('SELECT * FROM groups WHERE id = $1', [groupId]);
+        if (groupResult.rows.length === 0) {
+            return res.status(404).json({ message: 'Group not found' });
+        }
+
+        const group = groupResult.rows[0];
+        if (group.owners_id !== currentUserId) {
+            return res.status(403).json({ message: 'Only the owner can remove members.' });
+        }
+
+        // Remove member from groupMembers table
+        await pool.query('DELETE FROM groupMembers WHERE group_id = $1 AND users_id = $2', [groupId, userId]);
+
+        res.status(200).json({ message: 'Member removed from the group.' });
+    } catch (error) {
+        console.error('Error removing member:', error.message);
+        res.status(500).json({ message: 'Internal server error.' });
+    }
+};
+
+// Leave the group (Only for members)
+export const leaveGroup = async (req, res) => {
+    const { groupId, userId } = req.body;
+
+    try {
+        // Check if the member exists in the group
+        const memberResult = await pool.query('SELECT * FROM groupMembers WHERE group_id = $1 AND users_id = $2', [groupId, userId]);
+        if (memberResult.rowCount === 0) {
+            return res.status(404).json({ message: 'Member not found in the group' });
+        }
+
+        // Remove the member from the group
+        await pool.query('DELETE FROM groupMembers WHERE group_id = $1 AND users_id = $2', [groupId, userId]);
+
+        res.status(200).json({ message: 'Successfully left the group.' });
+    } catch (error) {
+        console.error('Error leaving group:', error.message);
+        res.status(500).json({ message: 'Internal server error.' });
     }
 };

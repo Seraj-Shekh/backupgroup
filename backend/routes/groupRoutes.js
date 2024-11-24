@@ -1,5 +1,5 @@
 import express from 'express';
-import { createGroup, getGroups, deleteGroup, getGroupById, sendJoinRequest, acceptJoinRequest, rejectJoinRequest } from '../controllers/groupController.js';
+import { createGroup, getGroups, deleteGroup, getGroupById, sendJoinRequest, acceptJoinRequest, rejectJoinRequest, removeMember, leaveGroup } from '../controllers/groupController.js';
 
 const router = express.Router();
 
@@ -23,5 +23,12 @@ router.post('/accept-request', acceptJoinRequest);
 
 // Route to reject a join request
 router.post('/reject-request', rejectJoinRequest);
+
+// Route to remove a member (only for the owner)
+router.post('/remove-member', removeMember);
+
+// Route to leave the group (only for members)
+router.post('/leave-group', leaveGroup);
+
 
 export { router as groupRoutes };

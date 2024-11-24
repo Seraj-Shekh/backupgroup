@@ -14,7 +14,7 @@ function GroupPage() {
     const [joinRequests, setJoinRequests] = useState([]); // For displaying join requests
 
     // Dynamically get the current user (hardcoded for now)
-    const currentUser = 2; 
+    const currentUser = 4; 
     useEffect(() => {
         console.log(`Fetching group with id: ${id}`);
 
@@ -60,7 +60,7 @@ function GroupPage() {
             })
             .catch((error) => {
                 console.error('Error sending join request:', error);
-                setError('Failed to send join request. Please try again.');
+                setError(`Failed to send join request: ${error.response ? error.response.data.message : 'Unknown error'}`);
             });
     };
 
@@ -98,7 +98,47 @@ function GroupPage() {
                 setError('Failed to reject join request. Please try again.');
             });
     };
-    
+
+    // Function to remove a member from the group (only for the owner)
+    const handleRemoveMember = (userId) => {
+        axios.post('/groups/remove-member', {
+            groupId: id, // Group ID from URL
+            userId: userId, // User ID of the member to be removed
+            currentUserId: currentUser // Owner's ID (current logged-in user)
+        })
+            .then(() => {
+                setGroup(prevGroup => ({
+                    ...prevGroup,
+                    members: prevGroup.members.filter(member => member.id !== userId) // Remove member from the UI
+                }));
+                alert('Member removed successfully!');
+            })
+            .catch((error) => {
+                console.error('Error removing member:', error);
+                setError('Failed to remove member. Please try again.');
+            });
+    };
+
+    // Function for a member to leave the group (only for the member)
+    const handleLeaveGroup = () => {
+        axios.post('/groups/leave-group', {
+            groupId: id, // Group ID from URL
+            userId: currentUser // Current user ID
+        })
+            .then(() => {
+                setGroup(prevGroup => ({
+                    ...prevGroup,
+                    members: prevGroup.members.filter(member => member.id !== currentUser) // Remove the member from the group
+                }));
+                setIsMember(false);
+                alert('You have left the group.');
+                navigate('/groups'); // Redirect to the groups list after leaving
+            })
+            .catch((error) => {
+                console.error('Error leaving group:', error);
+                setError('Failed to leave the group. Please try again.');
+            });
+    };
 
     // Function to delete the group
     const handleDeleteGroup = () => {
@@ -133,7 +173,15 @@ function GroupPage() {
             <ul>
                 {group.members && group.members.length > 0
                     ? group.members.map((member) => (
-                        <li key={member.id}>{member.name}</li>
+                        <li key={member.id}>
+                            {member.name}
+                            {isOwner && (
+                                <button onClick={() => handleRemoveMember(member.id)}>Remove</button>
+                            )}
+                            {isMember && member.id === currentUser && (
+                                <button onClick={handleLeaveGroup}>Leave Group</button>
+                            )}
+                        </li>
                     ))
                     : <li>No members</li>}
             </ul>
