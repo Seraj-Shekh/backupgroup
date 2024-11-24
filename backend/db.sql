@@ -1,0 +1,2 @@
+ALTER TABLE groupMembers
+ALTER COLUMN status TYPE VARCHAR;

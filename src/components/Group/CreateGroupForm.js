@@ -7,7 +7,7 @@ function CreateGroupForm() {
     const [error, setError] = useState(null);  
 
    
-    const currentUser = 1;  // Hardcoded for now, this should be dynamically set based on the logged-in user
+    const currentUser = 2;  // Hardcoded for now, this should be dynamically set based on the logged-in user
 
     const handleSubmit = (e) => {
         e.preventDefault();

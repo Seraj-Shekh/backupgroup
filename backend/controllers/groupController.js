@@ -37,6 +37,7 @@ export const getGroups = async (req, res) => {
 };
 
 // Fetch a group by ID and return join requests
+// Fetch a group by ID and return join requests
 export const getGroupById = async (req, res) => {
     const { id } = req.params;
 
@@ -59,14 +60,14 @@ export const getGroupById = async (req, res) => {
         // Prepare the group data
         const group = result.rows[0];
 
-        // Filter only the accepted members (status = 1)
-        const members = result.rows.filter(row => row.status === 1).map(row => ({
+        // Filter only the accepted members (status = 'accepted')
+        const members = result.rows.filter(row => row.status === 'accepted').map(row => ({
             id: row.member_id,
             name: row.member_name
         }));
 
-        // Get pending join requests (status = 0)
-        const joinRequests = result.rows.filter(row => row.status === 0).map(row => ({
+        // Get pending join requests (status = 'pending')
+        const joinRequests = result.rows.filter(row => row.status === 'pending').map(row => ({
             users_id: row.member_id,
             user_name: row.member_name,
             request_id: row.request_id
@@ -79,92 +80,124 @@ export const getGroupById = async (req, res) => {
     }
 };
 
+
+// Send a join request
 // Send a join request
 export const sendJoinRequest = async (req, res) => {
     const { groupId, userId } = req.body;
 
     try {
-        // Check if the user is already a member
-        const checkMember = await pool.query(
-            'SELECT * FROM groupMembers WHERE group_id = $1 AND users_id = $2',
+        // Check if the user is already a member or has a pending request
+        const existingMember = await pool.query(
+            `SELECT * FROM groupMembers WHERE group_id = $1 AND users_id = $2`,
             [groupId, userId]
         );
 
-        if (checkMember.rows.length > 0) {
-            return res.status(400).json({ message: 'You are already a member of this group.' });
+        if (existingMember.rowCount > 0) {
+            return res.status(400).json({ message: 'You have already joined or requested to join this group.' });
         }
 
-        // Insert join request with status = 0 (pending)
-        const result = await pool.query(
-            'INSERT INTO groupMembers (users_id, group_id, status) VALUES ($1, $2, 0) RETURNING *',
-            [userId, groupId]
+        // Insert a new join request with status 'pending'
+        await pool.query(
+            `INSERT INTO groupMembers (group_id, users_id, status) VALUES ($1, $2, $3)`,
+            [groupId, userId, 'pending'] // Ensure status is 'pending'
         );
 
-        return res.status(201).json({ message: 'Join request sent successfully!', request: result.rows[0] });
+        res.status(200).json({ message: 'Join request sent successfully.' });
     } catch (error) {
         console.error('Error sending join request:', error);
-        res.status(500).json({ message: 'Internal Server Error' });
+        res.status(500).json({ message: 'Internal server error.' });
     }
 };
+
+
 
 // Accept join request
+// Accept a join request
+// Accept a join request
 export const acceptJoinRequest = async (req, res) => {
-    const { groupId, userId } = req.body;
+    const { groupId, userId, currentUserId } = req.body;
 
     try {
-        const group = await pool.query('SELECT * FROM groups WHERE id = $1', [groupId]);
-        if (group.rows.length === 0) return res.status(404).json({ message: 'Group not found' });
-
-        const ownerId = group.rows[0].owners_id;
-        if (ownerId !== userId) {
-            return res.status(403).json({ message: 'Only the owner can accept join requests.' });
-        }
-
-        // Update the status of the join request to 1 (accepted)
-        const result = await pool.query(
-            'UPDATE groupMembers SET status = 1 WHERE group_id = $1 AND users_id = $2 AND status = 0 RETURNING *',
-            [groupId, userId]
+        // Fetch the group and join request details
+        const joinRequest = await pool.query(
+            `SELECT gm.*, g.owners_id 
+            FROM groupMembers gm
+            JOIN groups g ON gm.group_id = g.id
+            WHERE gm.group_id = $1 AND gm.users_id = $2 AND gm.status = $3`,
+            [groupId, userId, 'pending'] // Check for 'pending' status
         );
 
-        if (result.rowCount === 0) {
-            return res.status(404).json({ message: 'Join request not found or already accepted.' });
+        if (joinRequest.rowCount === 0) {
+            return res.status(404).json({ message: 'Join request not found or already processed.' });
         }
 
-        return res.status(200).json({ message: 'Join request accepted successfully.' });
+        const { owners_id } = joinRequest.rows[0];
+
+        // Validate if the current user is the owner of the group
+        if (owners_id !== currentUserId) {
+            return res.status(403).json({ message: 'Only the group owner can accept requests.' });
+        }
+
+        // Update the member status to 'accepted'
+        await pool.query(
+            `UPDATE groupMembers SET status = $1 
+            WHERE group_id = $2 AND users_id = $3`,
+            ['accepted', groupId, userId]
+        );
+
+        res.status(200).json({ message: 'Join request accepted successfully.' });
     } catch (error) {
         console.error('Error accepting join request:', error);
-        res.status(500).json({ message: 'Internal Server Error' });
+        res.status(500).json({ message: 'Internal server error.' });
     }
 };
+
+
 
 // Reject join request
+// Reject a join request
+// Reject a join request
 export const rejectJoinRequest = async (req, res) => {
-    const { groupId, userId } = req.body;
+    const { groupId, userId, currentUserId } = req.body;
 
     try {
-        const group = await pool.query('SELECT * FROM groups WHERE id = $1', [groupId]);
-        if (group.rows.length === 0) return res.status(404).json({ message: 'Group not found' });
-
-        const ownerId = group.rows[0].owners_id;
-        if (ownerId !== userId) {
-            return res.status(403).json({ message: 'Only the owner can reject join requests.' });
-        }
-
-        const result = await pool.query(
-            'UPDATE groupMembers SET status = -1 WHERE group_id = $1 AND users_id = $2 AND status = 0 RETURNING *',
-            [groupId, userId]
+        // Fetch the group and join request details
+        const joinRequest = await pool.query(
+            `SELECT gm.*, g.owners_id 
+            FROM groupMembers gm
+            JOIN groups g ON gm.group_id = g.id
+            WHERE gm.group_id = $1 AND gm.users_id = $2 AND gm.status = $3`,
+            [groupId, userId, 'pending'] // Check for 'pending' status
         );
 
-        if (result.rowCount === 0) {
-            return res.status(404).json({ message: 'Join request not found.' });
+        if (joinRequest.rowCount === 0) {
+            return res.status(404).json({ message: 'Join request not found or already processed.' });
         }
 
-        return res.status(200).json({ message: 'Join request rejected successfully.' });
+        const { owners_id } = joinRequest.rows[0];
+
+        // Validate if the current user is the owner of the group
+        if (owners_id !== currentUserId) {
+            return res.status(403).json({ message: 'Only the group owner can reject requests.' });
+        }
+
+        // Update the member status to 'rejected'
+        await pool.query(
+            `UPDATE groupMembers SET status = $1 
+            WHERE group_id = $2 AND users_id = $3`,
+            ['rejected', groupId, userId]
+        );
+
+        res.status(200).json({ message: 'Join request rejected successfully.' });
     } catch (error) {
         console.error('Error rejecting join request:', error);
-        res.status(500).json({ message: 'Internal Server Error' });
+        res.status(500).json({ message: 'Internal server error.' });
     }
 };
+
+
+
 
 // Delete a group
 export const deleteGroup = async (req, res) => {

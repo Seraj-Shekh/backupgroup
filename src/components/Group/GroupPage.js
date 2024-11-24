@@ -14,7 +14,7 @@ function GroupPage() {
     const [joinRequests, setJoinRequests] = useState([]); // For displaying join requests
 
     // Dynamically get the current user (hardcoded for now)
-    const currentUser = 1; 
+    const currentUser = 2; 
     useEffect(() => {
         console.log(`Fetching group with id: ${id}`);
 
@@ -66,7 +66,11 @@ function GroupPage() {
 
     // Function to accept a join request
     const handleAcceptJoinRequest = (userId) => {
-        axios.post('/groups/accept-request', { groupId: id, userId: userId })
+        axios.post('/groups/accept-request', {
+            groupId: id, // Group ID from URL
+            userId: userId, // User ID of the requester
+            currentUserId: currentUser // Owner's ID (current logged-in user)
+        })
             .then(() => {
                 setJoinRequests(joinRequests.filter(req => req.users_id !== userId)); // Remove accepted request
                 alert('Join request accepted!');
@@ -76,10 +80,15 @@ function GroupPage() {
                 setError('Failed to accept join request. Please try again.');
             });
     };
+    
 
     // Function to reject a join request
     const handleRejectJoinRequest = (userId) => {
-        axios.post('/groups/reject-request', { groupId: id, userId: userId })
+        axios.post('/groups/reject-request', {
+            groupId: id, // Group ID from URL
+            userId: userId, // User ID of the requester
+            currentUserId: currentUser // Owner's ID (current logged-in user)
+        })
             .then(() => {
                 setJoinRequests(joinRequests.filter(req => req.users_id !== userId)); // Remove rejected request
                 alert('Join request rejected!');
@@ -89,6 +98,7 @@ function GroupPage() {
                 setError('Failed to reject join request. Please try again.');
             });
     };
+    
 
     // Function to delete the group
     const handleDeleteGroup = () => {
